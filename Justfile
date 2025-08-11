@@ -1,6 +1,7 @@
 # Run clippy on all workspace members
 clippy:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo clippy -p broadnym_server -- -D warnings
+    cargo clippy -p broadnym_client --target wasm32-unknown-unknown -- -D warnings
 
 # Build the server
 build-server:
@@ -42,7 +43,7 @@ dev:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Starting server and client..."
-    cargo run --package server &
+    cargo run --package broadnym_server &
     SERVER_PID=$!
     cd client && trunk serve &
     CLIENT_PID=$!

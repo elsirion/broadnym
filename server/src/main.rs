@@ -140,7 +140,7 @@ async fn run_nym_service(state: Arc<AppState>) -> Result<()> {
 }
 
 async fn handle_request(request: Vec<u8>) -> Result<Vec<u8>> {
-    let tx_request: TransactionRequest = serde_json::from_slice(&request)?;
+    let tx_request: TransactionRequest = bincode::deserialize(&request)?;
     info!("Received transaction request for {:?}", tx_request.network);
     
     let client = reqwest::Client::new();
