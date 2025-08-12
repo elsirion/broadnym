@@ -122,7 +122,7 @@ fn main() {
                                         "Initializing Nym client..."
                                     </div>
                                 }
-                                    .into_any()
+                                    .into_any()Wr
                             }
                         }
                     }}
