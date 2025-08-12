@@ -2,8 +2,10 @@ use anyhow::Result;
 use axum::{response::Html, routing::get, Router};
 use clap::Parser;
 use common::TransactionRequest;
+use directories::ProjectDirs;
 use futures::StreamExt;
-use nym_sdk::mixnet::MixnetClientBuilder;
+use nym_sdk::mixnet::{MixnetClientBuilder, StoragePaths};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -13,6 +15,10 @@ use tracing::{error, info};
 struct Args {
     #[arg(short, long, default_value = "3000")]
     port: u16,
+    
+    /// Custom data directory for storing Nym client configuration
+    #[arg(long)]
+    data_dir: Option<PathBuf>,
 }
 
 struct AppState {
@@ -29,8 +35,9 @@ async fn main() -> Result<()> {
     });
 
     let state_clone = state.clone();
+    let data_dir = args.data_dir.clone();
     tokio::spawn(async move {
-        if let Err(e) = run_nym_service(state_clone).await {
+        if let Err(e) = run_nym_service(state_clone, data_dir).await {
             error!("Nym service error: {}", e);
         }
     });
@@ -98,10 +105,30 @@ async fn index_handler(
     Html(html)
 }
 
-async fn run_nym_service(state: Arc<AppState>) -> Result<()> {
+async fn run_nym_service(state: Arc<AppState>, custom_data_dir: Option<PathBuf>) -> Result<()> {
     info!("Starting Nym mixnet client...");
     
-    let mut client = MixnetClientBuilder::new()
+    // Determine storage directory
+    let storage_dir = match custom_data_dir {
+        Some(dir) => dir,
+        None => {
+            let project_dirs = ProjectDirs::from("com", "broadnym", "server")
+                .ok_or_else(|| anyhow::anyhow!("Could not determine project directories"))?;
+            project_dirs.data_dir().join("nym-client")
+        }
+    };
+    
+    // Create directory if it doesn't exist
+    tokio::fs::create_dir_all(&storage_dir).await?;
+    info!("Using storage directory: {:?}", storage_dir);
+    
+    // Create storage paths for persistent client
+    let storage_paths = StoragePaths::new_from_dir(&storage_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to create storage paths: {}", e))?;
+    
+    let mut client = MixnetClientBuilder::new_with_default_storage(storage_paths)
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create client with storage: {}", e))?
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to build mixnet client: {}", e))?
         .connect_to_mixnet()
